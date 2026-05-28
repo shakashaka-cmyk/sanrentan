@@ -39,7 +39,7 @@ function broadcast(room, message) {
 function getRoomState(room) {
   const r = rooms[room];
   return {
-    players: r.players.map(p => ({ id: p.id, name: p.name, score: p.score, isHost: p.isHost })),
+    players: r.players.map(p => ({ id: p.id, name: p.name, score: p.score, isHost: p.isHost, online: p.ws.readyState === 1 })),
     phase: r.phase,
     round: r.round,
     currentTopic: r.currentTopic,

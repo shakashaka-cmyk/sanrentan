@@ -27,6 +27,7 @@ body {
   background: var(--cream);
   color: var(--ink);
   min-height: 100vh;
+  padding-bottom: 60px;
   background-image:
     radial-gradient(ellipse at 20% 20%, rgba(232,184,75,0.12) 0%, transparent 50%),
     radial-gradient(ellipse at 80% 80%, rgba(217,79,59,0.08) 0%, transparent 50%);
@@ -401,6 +402,72 @@ input[type="text"]::placeholder { color: #BBB; }
   letter-spacing: 0.1em;
 }
 
+/* ===== MEMBER BAR ===== */
+#member-bar {
+  display: none;
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  background: rgba(26,18,8,0.92);
+  backdrop-filter: blur(8px);
+  padding: 8px 16px;
+  z-index: 200;
+  border-top: 1px solid rgba(232,184,75,0.2);
+}
+.member-bar-inner {
+  max-width: 640px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.member-bar-inner::-webkit-scrollbar { display: none; }
+.member-bar-label {
+  font-size: 0.7rem;
+  color: rgba(255,255,255,0.4);
+  letter-spacing: 0.15em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.member-pip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1.5px solid transparent;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all 0.3s;
+}
+.member-pip.online {
+  background: rgba(82,183,136,0.15);
+  border-color: rgba(82,183,136,0.4);
+}
+.member-pip.offline {
+  background: rgba(255,255,255,0.05);
+  border-color: rgba(255,255,255,0.1);
+  opacity: 0.5;
+}
+.member-pip .pip-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.member-pip.online .pip-dot { background: #52B788; box-shadow: 0 0 6px #52B788; }
+.member-pip.offline .pip-dot { background: #666; }
+.member-pip .pip-name {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: white;
+}
+.member-pip.is-me .pip-name { color: #F5D98A; }
+.member-pip .pip-outer {
+  font-size: 0.65rem;
+  color: #E8B84B;
+}
+
 /* ===== CONFETTI ===== */
 .confetti-wrap { position: fixed; inset: 0; pointer-events: none; z-index: 100; }
 .confetti-piece {
@@ -438,6 +505,14 @@ input[type="text"]::placeholder { color: #BBB; }
 <div class="header">
   <div class="title-main">サンレンタン</div>
   <div class="title-sub">価値観を３位まで当てるゲーム</div>
+</div>
+
+<!-- ===== MEMBER BAR ===== -->
+<div id="member-bar">
+  <div class="member-bar-inner">
+    <div class="member-bar-label">ROOM</div>
+    <div id="member-bar-list"></div>
+  </div>
 </div>
 
 <!-- ===== TOP SCREEN ===== -->
@@ -698,6 +773,7 @@ function handleMessage(msg) {
   } else if (msg.type === 'state_update') {
     state = msg.state;
     renderState();
+    renderMemberBar();
   } else if (msg.type === 'error') {
     showError(msg.message);
   }
@@ -1160,7 +1236,7 @@ function showReloadWarning() {
     position:fixed; inset:0; background:rgba(26,18,8,0.7);
     display:flex; align-items:center; justify-content:center; z-index:9999;
   `;
-  modal.innerHTML = \`
+  modal.innerHTML = `
     <div style="background:#FFFDF5; border-radius:16px; padding:28px 24px; max-width:320px; width:90%; text-align:center; box-shadow:0 8px 40px rgba(0,0,0,0.3);">
       <div style="font-size:2rem; margin-bottom:8px;">⚠️</div>
       <div style="font-family:'Kaisei Opti',serif; font-size:1.1rem; font-weight:700; margin-bottom:8px;">ゲーム中です</div>
@@ -1176,7 +1252,7 @@ function showReloadWarning() {
         </button>
       </div>
     </div>
-  \`;
+  `;
   document.body.appendChild(modal);
   // モーダル外クリックで閉じる
   modal.addEventListener('click', (e) => {
@@ -1184,10 +1260,37 @@ function showReloadWarning() {
   });
 }
 
+// ===== MEMBER BAR =====
+function renderMemberBar() {
+  const bar = document.getElementById('member-bar');
+  const list = document.getElementById('member-bar-list');
+  if (!state || !myId) { bar.style.display = 'none'; return; }
+
+  // ロビー画面では非表示（ロビーに既にプレイヤー一覧がある）
+  const currentScreen = document.querySelector('.screen.active');
+  if (currentScreen && currentScreen.id === 'screen-top') { bar.style.display = 'none'; return; }
+
+  bar.style.display = 'block';
+  list.innerHTML = '';
+  state.players.forEach(p => {
+    const pip = document.createElement('div');
+    const isMe = p.id === myId;
+    const isOuter = p.id === state.outerId;
+    pip.className = `member-pip ${p.online !== false ? 'online' : 'offline'} ${isMe ? 'is-me' : ''}`;
+    pip.innerHTML = `
+      <span class="pip-dot"></span>
+      <span class="pip-name">${p.name}${isMe ? ' (あなた)' : ''}</span>
+      ${isOuter && state.phase !== 'lobby' ? '<span class="pip-outer">出題中</span>' : ''}
+    `;
+    list.appendChild(pip);
+  });
+}
+
 // ===== UTIL =====
 function showScreen(name) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(`screen-${name}`).classList.add('active');
+  renderMemberBar();
 }
 
 function showError(msg) {
