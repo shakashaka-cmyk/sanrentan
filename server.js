@@ -93,9 +93,22 @@ wss.on('connection', (ws) => {
     else if (msg.type === 'join_room') {
       roomId = msg.roomId.toUpperCase();
       if (!rooms[roomId]) { ws.send(JSON.stringify({ type: 'error', message: 'ルームが見つかりません' })); return; }
-      if (rooms[roomId].phase !== 'lobby') { ws.send(JSON.stringify({ type: 'error', message: 'ゲームはすでに開始されています' })); return; }
+
+      const r = rooms[roomId];
+      // 同名プレイヤーが既にいたら復帰
+      const existing = r.players.find(p => p.name === msg.name);
+      if (existing) {
+        existing.ws = ws; // WSを新しい接続に差し替え
+        playerId = existing.id;
+        ws.send(JSON.stringify({ type: 'rejoined', roomId, playerId, state: getRoomState(roomId) }));
+        broadcast(roomId, { type: 'state_update', state: getRoomState(roomId) });
+        return;
+      }
+
+      // 新規参加はロビー中のみ
+      if (r.phase !== 'lobby') { ws.send(JSON.stringify({ type: 'error', message: 'ゲームはすでに開始されています' })); return; }
       playerId = 'p_' + Math.random().toString(36).substring(2, 8);
-      rooms[roomId].players.push({ id: playerId, name: msg.name, score: 0, isHost: false, ws });
+      r.players.push({ id: playerId, name: msg.name, score: 0, isHost: false, ws });
       ws.send(JSON.stringify({ type: 'joined', roomId, playerId, state: getRoomState(roomId) }));
       broadcast(roomId, { type: 'state_update', state: getRoomState(roomId) });
     }

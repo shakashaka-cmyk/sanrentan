@@ -770,6 +770,13 @@ function handleMessage(msg) {
     myRoomId = msg.roomId;
     state = msg.state;
     renderLobby();
+  } else if (msg.type === 'rejoined') {
+    myId = msg.playerId;
+    myRoomId = msg.roomId;
+    state = msg.state;
+    showRejoinToast();
+    renderState(); // ゲームの現在フェーズに復帰
+    renderMemberBar();
   } else if (msg.type === 'state_update') {
     state = msg.state;
     renderState();
@@ -777,6 +784,20 @@ function handleMessage(msg) {
   } else if (msg.type === 'error') {
     showError(msg.message);
   }
+}
+
+function showRejoinToast() {
+  const toast = document.createElement('div');
+  toast.style.cssText = `
+    position:fixed; top:16px; left:50%; transform:translateX(-50%);
+    background:#2D6A4F; color:white; padding:10px 20px;
+    border-radius:20px; font-weight:700; font-size:0.875rem;
+    z-index:9999; box-shadow:0 4px 16px rgba(0,0,0,0.2);
+    animation: fadeIn 0.3s ease;
+  `;
+  toast.textContent = '✅ ゲームに復帰しました！';
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
 }
 
 // ===== ロビー =====
