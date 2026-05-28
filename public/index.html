@@ -573,6 +573,10 @@ input[type="text"]::placeholder { color: #BBB; }
       <div class="text-sm text-muted gap-8">全員揃うまで待ちましょう</div>
     </div>
     <div class="card">
+      <div class="card-title">あなたの予想</div>
+      <div class="ranking-display" id="my-submission-display"></div>
+    </div>
+    <div class="card">
       <div class="card-title">提出状況</div>
       <div class="waiting-list" id="waiting-guess-list"></div>
     </div>
@@ -932,7 +936,23 @@ function submitGuess() {
 // ===== 提出後待機 =====
 function renderWaitingGuess() {
   showScreen('waiting-guess');
+  renderMySubmission();
   renderSubmissionStatus('waiting-guess-list');
+}
+
+function renderMySubmission() {
+  const myGuess = state.submissions[myId] || guessRanking;
+  const wrap = document.getElementById('my-submission-display');
+  if (!wrap) return;
+  if (!myGuess || myGuess.length === 0) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  const colors = ['#E8B84B','#9E9E9E','#CD7F32'];
+  wrap.innerHTML = myGuess.map((c, i) => `
+    <div class="rank-item rank-${i+1}" style="margin-bottom:6px;">
+      <div class="rank-badge" style="background:${colors[i]};color:white;">${i+1}</div>
+      <span style="font-weight:700;">${c}</span>
+    </div>
+  `).join('');
 }
 
 // ===== 出題者: 予想待ち =====
@@ -943,12 +963,25 @@ function renderOuterWaitingReveal() {
 
 function renderSubmissionStatus(elId) {
   const guessers = state.players.filter(p => p.id !== state.outerId);
-  document.getElementById(elId).innerHTML = guessers.map(p => `
-    <div class="waiting-item">
-      <span style="font-weight:500;">${p.name}${p.id === myId ? ' (あなた)' : ''}</span>
-      <span class="status-dot ${state.submissions[p.id] ? 'done' : ''}"></span>
-    </div>
-  `).join('');
+  const el = document.getElementById(elId);
+  el.innerHTML = '';
+  guessers.forEach(p => {
+    const submitted = !!state.submissions[p.id];
+    const item = document.createElement('div');
+    item.className = 'waiting-item';
+    item.style.flexDirection = 'column';
+    item.style.alignItems = 'flex-start';
+    item.style.gap = '6px';
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;width:100%;';
+    row.innerHTML = `
+      <span style="font-weight:700;">${p.name}${p.id === myId ? ' (あなた)' : ''}</span>
+      <span style="font-size:0.8rem;color:${submitted ? 'var(--green)' : '#BBB'};font-weight:700;">
+        ${submitted ? '✅ 提出済' : '⏳ 未提出'}
+      </span>`;
+    item.appendChild(row);
+    el.appendChild(item);
+  });
 }
 
 // ===== 結果発表 =====
@@ -1052,6 +1085,12 @@ function renderResult() {
 }
 
 function restartGame() {
+  // ゲーム内変数をリセット
+  selectedTopic = null;
+  outerRanking = [];
+  guessRanking = [];
+  customChoices = [];
+  sampleTopics = [];
   ws.send(JSON.stringify({ type: 'restart' }));
 }
 

@@ -45,7 +45,7 @@ function getRoomState(room) {
     currentTopic: r.currentTopic,
     outerId: r.outerId,
     outerName: r.players.find(p => p.id === r.outerId)?.name || '',
-    submissions: r.phase === 'reveal' ? r.submissions : {},
+    submissions: (r.phase === 'guessing' || r.phase === 'reveal') ? r.submissions : {},
     outerAnswer: r.phase === 'reveal' ? r.outerAnswer : null,
     roundScores: r.roundScores || {}
   };
