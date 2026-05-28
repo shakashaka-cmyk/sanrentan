@@ -45,7 +45,7 @@ function getRoomState(room) {
     currentTopic: r.currentTopic,
     outerId: r.outerId,
     outerName: r.players.find(p => p.id === r.outerId)?.name || '',
-    submissions: (r.phase === 'guessing' || r.phase === 'reveal') ? r.submissions : {},
+    submissions: (r.phase === 'guessing' || r.phase === 'waiting_reveal' || r.phase === 'reveal') ? r.submissions : {},
     outerAnswer: r.phase === 'reveal' ? r.outerAnswer : null,
     roundScores: r.roundScores || {}
   };
@@ -130,14 +130,22 @@ wss.on('connection', (ws) => {
       r.submissions[playerId] = msg.ranking;
       const guessers = r.players.filter(p => p.id !== r.outerId);
       if (guessers.every(p => r.submissions[p.id])) {
-        r.roundScores = {};
-        guessers.forEach(p => { r.roundScores[p.id] = calcScore(r.outerAnswer, r.submissions[p.id]); });
-        guessers.forEach(p => { p.score += r.roundScores[p.id].total; });
-        r.phase = 'reveal';
-        broadcast(roomId, { type: 'state_update', state: getRoomState(roomId) });
-      } else {
-        broadcast(roomId, { type: 'state_update', state: getRoomState(roomId) });
+        // 全員提出済み → 出題者が結果発表ボタンを押すまで待機
+        r.phase = 'waiting_reveal';
       }
+      broadcast(roomId, { type: 'state_update', state: getRoomState(roomId) });
+    }
+
+    else if (msg.type === 'show_reveal') {
+      const r = rooms[roomId];
+      if (!r || r.outerId !== playerId) return;
+      // スコア計算してrevealへ
+      const guessers = r.players.filter(p => p.id !== r.outerId);
+      r.roundScores = {};
+      guessers.forEach(p => { r.roundScores[p.id] = calcScore(r.outerAnswer, r.submissions[p.id]); });
+      guessers.forEach(p => { p.score += r.roundScores[p.id].total; });
+      r.phase = 'reveal';
+      broadcast(roomId, { type: 'state_update', state: getRoomState(roomId) });
     }
 
     else if (msg.type === 'next_round') {

@@ -619,15 +619,18 @@ input[type="text"]::placeholder { color: #BBB; }
 <!-- ===== OUTER WAITING REVEAL ===== -->
 <div id="screen-outer-reveal" class="screen">
   <div class="container">
-    <div class="phase-label">⏳ みんなが予想中…</div>
+    <div class="phase-label" id="outer-reveal-title">⏳ みんなが予想中…</div>
     <div class="card text-center">
       <div style="font-size:2rem; margin-bottom:8px;">🤫</div>
       <div style="font-weight:700;">あなたの答えを秘密にしています</div>
-      <div class="text-sm text-muted gap-8">全員が予想を終えると結果が発表されます</div>
+      <div class="text-sm text-muted gap-8" id="outer-reveal-msg">全員が予想を終えると結果発表ボタンが出ます</div>
     </div>
     <div class="card">
       <div class="card-title">提出状況</div>
       <div class="waiting-list" id="outer-waiting-list"></div>
+    </div>
+    <div id="outer-reveal-btn" style="display:none;">
+      <button class="btn btn-gold btn-full" style="font-size:1.1rem; padding:16px;" onclick="showReveal()">🎊 結果を発表する！</button>
     </div>
   </div>
 </div>
@@ -772,6 +775,12 @@ function renderState() {
       } else {
         renderGuessing();
       }
+    }
+  } else if (state.phase === 'waiting_reveal') {
+    if (isOuter) {
+      renderOuterReadyToReveal();
+    } else {
+      renderWaitingGuess(); // 提出済み待機画面を再利用
     }
   } else if (state.phase === 'reveal') {
     renderReveal();
@@ -958,7 +967,23 @@ function renderMySubmission() {
 // ===== 出題者: 予想待ち =====
 function renderOuterWaitingReveal() {
   showScreen('outer-reveal');
+  document.getElementById('outer-reveal-title').textContent = '⏳ みんなが予想中…';
+  document.getElementById('outer-reveal-msg').textContent = '全員が予想を終えると結果発表ボタンが出ます';
+  document.getElementById('outer-reveal-btn').style.display = 'none';
   renderSubmissionStatus('outer-waiting-list');
+}
+
+// ===== 出題者: 全員提出済み → 結果発表ボタン表示 =====
+function renderOuterReadyToReveal() {
+  showScreen('outer-reveal');
+  document.getElementById('outer-reveal-title').textContent = '✅ 全員が提出しました！';
+  document.getElementById('outer-reveal-msg').textContent = '準備ができたら結果を発表しましょう';
+  document.getElementById('outer-reveal-btn').style.display = 'block';
+  renderSubmissionStatus('outer-waiting-list');
+}
+
+function showReveal() {
+  ws.send(JSON.stringify({ type: 'show_reveal' }));
 }
 
 function renderSubmissionStatus(elId) {
@@ -1104,6 +1129,59 @@ function renderScoreboard(elId) {
       <span class="pts">${p.score}<small style="font-size:0.7em;">pt</small></span>
     </div>
   `).join('');
+}
+
+// ===== リロード・離脱防止 =====
+window.addEventListener('beforeunload', (e) => {
+  if (myId && state && state.phase !== 'lobby') {
+    e.preventDefault();
+    e.returnValue = 'ゲーム中です。本当にページを離れますか？';
+    return e.returnValue;
+  }
+});
+
+// Command+R / Ctrl+R をゲーム中はブロック
+document.addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'r') {
+    if (myId && state && state.phase !== 'lobby') {
+      e.preventDefault();
+      e.stopPropagation();
+      showReloadWarning();
+    }
+  }
+}, true);
+
+function showReloadWarning() {
+  const existing = document.getElementById('reload-warning-modal');
+  if (existing) return;
+  const modal = document.createElement('div');
+  modal.id = 'reload-warning-modal';
+  modal.style.cssText = `
+    position:fixed; inset:0; background:rgba(26,18,8,0.7);
+    display:flex; align-items:center; justify-content:center; z-index:9999;
+  `;
+  modal.innerHTML = \`
+    <div style="background:#FFFDF5; border-radius:16px; padding:28px 24px; max-width:320px; width:90%; text-align:center; box-shadow:0 8px 40px rgba(0,0,0,0.3);">
+      <div style="font-size:2rem; margin-bottom:8px;">⚠️</div>
+      <div style="font-family:'Kaisei Opti',serif; font-size:1.1rem; font-weight:700; margin-bottom:8px;">ゲーム中です</div>
+      <div style="font-size:0.875rem; color:#3D2E10; opacity:0.7; margin-bottom:20px;">リロードすると部屋を退出してしまいます。本当にリロードしますか？</div>
+      <div style="display:flex; gap:8px;">
+        <button onclick="document.getElementById('reload-warning-modal').remove()"
+          style="flex:1; padding:10px; border-radius:10px; border:2px solid rgba(61,46,16,0.2); background:transparent; font-family:inherit; font-weight:700; cursor:pointer;">
+          キャンセル
+        </button>
+        <button onclick="location.reload()"
+          style="flex:1; padding:10px; border-radius:10px; border:none; background:#D94F3B; color:white; font-family:inherit; font-weight:700; cursor:pointer;">
+          リロードする
+        </button>
+      </div>
+    </div>
+  \`;
+  document.body.appendChild(modal);
+  // モーダル外クリックで閉じる
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) modal.remove();
+  });
 }
 
 // ===== UTIL =====
