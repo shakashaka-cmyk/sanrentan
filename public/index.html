@@ -658,19 +658,31 @@ let guessRanking = []; // 予想者の選んだ順位
 let customChoices = [];
 
 // ===== WS 接続 =====
+let pingTimer = null;
+
 function connect(onOpen) {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
   ws = new WebSocket(`${proto}//${location.host}`);
-  ws.onopen = onOpen;
+  ws.onopen = () => {
+    onOpen();
+    if (pingTimer) clearInterval(pingTimer);
+    pingTimer = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'ping' }));
+    }, 25000);
+  };
   ws.onmessage = (e) => {
     const msg = JSON.parse(e.data);
     handleMessage(msg);
   };
   ws.onerror = () => showError('接続エラーが発生しました');
-  ws.onclose = () => console.log('接続切断');
+  ws.onclose = () => {
+    if (pingTimer) clearInterval(pingTimer);
+    console.log('接続切断');
+  };
 }
 
 function handleMessage(msg) {
+  if (msg.type === 'pong') return;
   if (msg.type === 'joined') {
     myId = msg.playerId;
     myRoomId = msg.roomId;
@@ -838,17 +850,18 @@ function renderOuterAnswer() {
 function renderOuterChoices() {
   const choices = state.currentTopic.choices;
   const grid = document.getElementById('outer-choices');
-  grid.innerHTML = choices.map(c => {
+  grid.innerHTML = '';
+  choices.forEach((c, idx) => {
     const rank = outerRanking.indexOf(c);
     const rankClass = rank === 0 ? 'rank-1' : rank === 1 ? 'rank-2' : rank === 2 ? 'rank-3' : '';
     const rankLabel = rank >= 0 ? rank + 1 : '';
-    return `
-      <button class="choice-btn ${rankClass}" onclick="toggleOuterChoice('${c}')">
-        <span class="rank-badge">${rankLabel}</span>
-        ${c}
-      </button>
-    `;
-  }).join('');
+    const btn = document.createElement('button');
+    btn.className = 'choice-btn ' + rankClass;
+    btn.innerHTML = `<span class="rank-badge">${rankLabel}</span>`;
+    btn.appendChild(document.createTextNode(c));
+    btn.addEventListener('click', () => toggleOuterChoice(c));
+    grid.appendChild(btn);
+  });
   document.getElementById('btn-submit-outer').disabled = outerRanking.length !== 3;
 }
 
@@ -886,17 +899,18 @@ function renderGuessing() {
 function renderGuessChoices() {
   const choices = state.currentTopic.choices;
   const grid = document.getElementById('guess-choices');
-  grid.innerHTML = choices.map(c => {
+  grid.innerHTML = '';
+  choices.forEach((c, idx) => {
     const rank = guessRanking.indexOf(c);
     const rankClass = rank === 0 ? 'rank-1' : rank === 1 ? 'rank-2' : rank === 2 ? 'rank-3' : '';
     const rankLabel = rank >= 0 ? rank + 1 : '';
-    return `
-      <button class="choice-btn ${rankClass}" onclick="toggleGuessChoice('${c}')">
-        <span class="rank-badge">${rankLabel}</span>
-        ${c}
-      </button>
-    `;
-  }).join('');
+    const btn = document.createElement('button');
+    btn.className = 'choice-btn ' + rankClass;
+    btn.innerHTML = `<span class="rank-badge">${rankLabel}</span>`;
+    btn.appendChild(document.createTextNode(c));
+    btn.addEventListener('click', () => toggleGuessChoice(c));
+    grid.appendChild(btn);
+  });
   document.getElementById('btn-submit-guess').disabled = guessRanking.length !== 3;
 }
 
