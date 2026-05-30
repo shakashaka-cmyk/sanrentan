@@ -98,7 +98,8 @@ wss.on('connection', (ws) => {
       // 同名プレイヤーが既にいたら復帰
       const existing = r.players.find(p => p.name === msg.name);
       if (existing) {
-        existing.ws = ws; // WSを新しい接続に差し替え
+        existing.ws = ws;   // WSを新しい接続に差し替え
+        existing.online = true;
         playerId = existing.id;
         ws.send(JSON.stringify({ type: 'rejoined', roomId, playerId, state: getRoomState(roomId) }));
         broadcast(roomId, { type: 'state_update', state: getRoomState(roomId) });
@@ -189,12 +190,23 @@ wss.on('connection', (ws) => {
   });
 
   ws.on('close', () => {
-    if (roomId && rooms[roomId]) {
-      rooms[roomId].players = rooms[roomId].players.filter(p => p.id !== playerId);
-      if (rooms[roomId].players.length === 0) {
+    if (!roomId || !rooms[roomId]) return;
+    const r = rooms[roomId];
+
+    if (r.phase === 'lobby') {
+      // ロビー中は完全に削除
+      r.players = r.players.filter(p => p.id !== playerId);
+      if (r.players.length === 0) {
         delete rooms[roomId];
       } else {
-        if (!rooms[roomId].players.find(p => p.isHost)) rooms[roomId].players[0].isHost = true;
+        if (!r.players.find(p => p.isHost)) r.players[0].isHost = true;
+        broadcast(roomId, { type: 'state_update', state: getRoomState(roomId) });
+      }
+    } else {
+      // ゲーム中はofflineにして残す（復帰できるように）
+      const player = r.players.find(p => p.id === playerId);
+      if (player) {
+        player.online = false;
         broadcast(roomId, { type: 'state_update', state: getRoomState(roomId) });
       }
     }
